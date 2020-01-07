@@ -1,0 +1,5 @@
+/node_modules/
+/yarn-error.log
+/dist
+/dist/css/app.586dad51.css
+/dist/css/app.ecdf29b0.css
