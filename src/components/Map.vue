@@ -7,6 +7,8 @@ import mapboxgl from 'mapbox-gl';
 import U from 'mapbox-gl-utils';
 import { sheets2geojson } from 'sheets2geojson';
 import boundingBox from 'geojson-bounding-box';
+import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
+import { EventBus } from './EventBus';
 
 const d3 = require('d3-fetch');
 
@@ -18,7 +20,7 @@ function pointsToGeoJSON(points) {
             type: 'Feature',
             geometry: {
                 type: 'Point',
-                coordinates: [p.longitude, p.latitude],
+                coordinates: [+p.longitude, +p.latitude],
             },
             properties: {
                 ...p
@@ -27,19 +29,20 @@ function pointsToGeoJSON(points) {
     };
 }
 
+mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmFnZSIsImEiOiJjazNmNGV5enAwMTF1M2tuejhtc2twcXo5In0.mLPrYIYJ2FiFZ3KMqVIj6w';
 export default {
     async mounted() {
         // replace this Mapbox access token with your own
-        mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmFnZSIsImEiOiJjazNmNGV5enAwMTF1M2tuejhtc2twcXo5In0.mLPrYIYJ2FiFZ3KMqVIj6w';
         const map = new mapboxgl.Map({
             container: 'map',
-            center: [144.96, -37.81],
-            zoom: 14,
-            style: 'mapbox://styles/mapbox/light-v9',
+            center: [150, -35],
+            zoom: 10,
+            style: 'mapbox://styles/stevage/ck53afte706y91cqqk4rcv8k8/draft',
         });
         U.init(map, mapboxgl);
         window.map = map;
-        window.Map = this;
+        window.MapVue = this;
+
 
 
     // const sheetNo = 1;
@@ -52,14 +55,28 @@ export default {
 
         const cors = 'https://cors-anywhere.herokuapp.com/';
         const points = await d3.json(cors + 'https://k0as85pt27.execute-api.ap-southeast-2.amazonaws.com/dev/items')
+        window.firemap.data.points = points;
         const pointsGeoJSON = pointsToGeoJSON(points);
+        window.firemap.data.pointsGeoJSON = pointsGeoJSON;
+
         // console.log(pointsGeoJSON);
         map.U.onLoad(() => {
+            EventBus.$emit('sites-loaded', pointsGeoJSON);
+            EventBus.$emit('map-init', map)
+
 
             map.U.addGeoJSON('points', pointsGeoJSON);
-            map.U.addCircle('points-circles', 'points', {
-                circleColor: 'hsl(330,100%,40%)',
-                circleRadius: { stops: [[10,3], [12, 10]] }
+            // map.U.addCircle('points-circles', 'points', {
+            //     circleColor: 'hsl(330,100%,40%)',
+            //     circleRadius: { stops: [[10,3], [12, 10]] }
+            // });
+            // map.U.hoverPointer('points-circles');
+            map.U.addSymbol('points-icons', 'points', {
+                textFont: ['Font Awesome 5 Pro Light'],
+                textColor: 'blue',
+                textField: nameToSymbolExpression(),
+                textSize: 30,
+                textAllowOverlap: true
             });
             map.U.hoverPointer('points-circles');
             map.on('click', 'points-circles', e => {
@@ -67,12 +84,43 @@ export default {
                 window.FeatureInfo.feature = e.features[0];
             });
             map.fitBounds(boundingBox(pointsGeoJSON));
-
         });
         
     }
 }
+
+function nameToSymbolExpression() {
+    const faIcons = require('./fa-unicode.json');
+    const unicode  = icon => String.fromCharCode(Number(`0x${faIcons[icon]}`));
+    console.log(faIcons);
+
+    
+    // const icons = {
+    //     'Evacuation Centre': 'bed'
+    // }
+    const icons = {
+        'General assistance/info': 'question-circle',
+        'Money/other donations': 'usd-circle',
+        'Accommodation/evac centres': 'home-heart',
+        'Pets/animals':'paw-alt',
+        'Supplies':'box-heart',
+        'Local community groups':'people-carry',
+        // 'All Australian Hospitals':
+    }
+    
+    // const expr = ['match', ['get', 'helpCategory']];
+    const expr = ['match', ['get', 'assistanceType']];
+
+    Object.keys(icons).forEach(i => expr.push(i, unicode(icons[i])));
+    console.log(expr);
+    return [...expr, ''];
+    
+}
+
+
 import 'mapbox-gl/dist/mapbox-gl.css';
+import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css';
+
 
 </script>
 
